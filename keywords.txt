@@ -1,0 +1,22 @@
+#######################################
+# Syntax Coloring Map Servo
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+INC_ENCODER	KEYWORD1	INC_ENCODER
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+ResetCounter		KEYWORD2
+begin				KEYWORD2
+GetTimerCounter		KEYWORD2
+GetDistance			KEYWORD2
+GetSpeed			KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
