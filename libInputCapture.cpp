@@ -9,6 +9,11 @@
 #define DEBUGLN(x,y)
 #define DEBUGLED()
 
+uint16_t dbg_acch;
+uint16_t dbg_bb;
+uint16_t dbg_ch;
+uint8_t  dbg_idx;
+
 sInputCapture ICMap[] = {
   {
     .tim = TIM5, // TIM5 CH1
@@ -113,7 +118,7 @@ sICdata ICdata[10];
 */
 static uint8_t bitbang(uint32_t v) {
   uint8_t i;
-  for( i=0;(i<32) && !(v & (1<<i)) ;i++);
+  for( i=0;(i<32) && (!(v & (1<<i)));i++);
     return i;
 }
 
@@ -139,9 +144,11 @@ static int8_t getIndex(TIM_TypeDef *tim,uint16_t channel)
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
   uint16_t ch =ActiveChannelMap[bitbang(htim->Channel)];
-
+  // dbg_acch = htim->Channel;
+  // dbg_bb = bitbang(htim->Channel);
+  // dbg_ch = ActiveChannelMap[bitbang(htim->Channel)];;
   uint8_t idx = getIndex(htim->Instance,ch);
-  
+  // dbg_idx = idx;  
   uint32_t t = HAL_TIM_ReadCapturedValue(htim, ch);
   if(t>ICdata[idx].Previous_value)
     ICdata[idx].Period = t-ICdata[idx].Previous_value;
@@ -150,7 +157,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
   ICdata[idx].Previous_value=t;
   ICdata[idx].Frequency = ICdata[idx].FREQ_TIM/(float)ICdata[idx].Period;
   //Frequency=Period;
-  DEBUGLED();
+  digitalWrite(13,dbg_bb);
   ICdata[idx].getF=true;
 }
 
@@ -245,10 +252,9 @@ void InputCapture::HAL_IC_TIMx_Base_MspInit(sInputCapture *ic)
 }
 
 bool InputCapture::getCaptureEvent(void){
-  DEBUG("TIM->CNT=",TIM5->CNT);
-  DEBUG(" - Previous_value=",ICdata[idx].Previous_value);
-  DEBUG(" - timer_resolution=",ICMap[idx].timer_resolution);
-  DEBUGLN(" - FREQ_TIM=",ICdata[idx].FREQ_TIM);
+  DEBUG("-idx=",idx);
+//  DEBUG("-Previous_value=",ICdata[idx].Previous_value);
+  DEBUG("-Frequency=",ICdata[idx].Frequency);
   bool tmp=ICdata[idx].getF;
   ICdata[idx].getF=false;
   return tmp;
@@ -264,4 +270,10 @@ float  InputCapture::getFrequency(void){
 
 uint32_t InputCapture::getCapturePinNumber(void){
   return 0;
+}
+void dbg_print_ch() {
+  DEBUG("-acch=",dbg_acch);
+  DEBUG("-bb=",dbg_bb);
+  DEBUG("-ch=",dbg_ch);
+  DEBUGLN("-idx=",dbg_idx);
 }

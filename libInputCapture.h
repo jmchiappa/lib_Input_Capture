@@ -4,6 +4,11 @@
 #include "Arduino.h"
 
 #define TIM5_CH1	0
+#define TIM5_CH2	1
+#define TIM8_CH1	2
+#define TIM8_CH2	3
+#define TIM8_CH3	4
+#define TIM8_CH4	5
 
 typedef struct {
 	uint32_t Period;
@@ -25,6 +30,8 @@ typedef struct struct_ic {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+void dbg_print_ch(void);
 
 class InputCapture{
 
