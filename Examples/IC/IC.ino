@@ -6,31 +6,27 @@
  Connect BF_GENERATOR output to your TIMx_CHx input
 */
 
-#define BF_GENERATOR	3
+#define BF_GENERATOR	4
 #define SERIAL(x,y)	{Serial.print(x); Serial.println(y);}
-InputCapture ic1;
-InputCapture ic2;
+InputCapture ic1(2);
+InputCapture ic2(3);
 
 
 void setup()
 {
 	Serial.begin(115200);
-	ic1.begin(TIM5_CH1, TIM_INPUTCHANNELPOLARITY_RISING,0);	// set TIM5 CH1
-	ic2.begin(TIM5_CH2, TIM_INPUTCHANNELPOLARITY_RISING,0);	// set TIM5 CH1
-	pinMode(BF_GENERATOR,OUTPUT);
-
+	ic1.begin();	
+	ic2.begin();	
+	analogWrite(BF_GENERATOR,128);
+  Serial.println("Setup completed");
 }
 
 void loop()
 {
-  digitalWrite(BF_GENERATOR, HIGH);
-  delay(map(analogRead(A5),0,1023,0,200));
-  digitalWrite(BF_GENERATOR, LOW);
-  delay(map(analogRead(A5),0,1023,0,200));
   //analogWrite(2,map(analogRead(A1),0,1023,0,255));
-  if(ic1.getCaptureEvent())
+  if(ic1.getEvent())
     SERIAL("Fic1=",ic1.getFrequency());
-  if(ic2.getCaptureEvent())
+  if(ic2.getEvent())
     SERIAL("Fic2=",ic2.getFrequency());
   // ic1.getCaptureEvent();
   // ic2.getCaptureEvent();

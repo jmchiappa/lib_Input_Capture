@@ -9,139 +9,42 @@
 #define DEBUGLN(x,y)
 #define DEBUGLED()
 
-uint16_t dbg_acch;
+/*uint16_t dbg_acch;
 uint16_t dbg_bb;
 uint16_t dbg_ch;
 uint8_t  dbg_idx;
-
-sInputCapture ICMap[] = {
-  {
-    .tim = TIM5, // TIM5 CH1
-    .timer_resolution = 0xffffffff,
-    .tim_channel = TIM_CHANNEL_1,
-    .port = PortA,
-    .io = { // TIM5 CH1 IO
-      .Pin = GPIO_PIN_0,
-      .Mode = GPIO_MODE_AF_PP,
-      .Pull = GPIO_NOPULL,
-      .Speed = GPIO_SPEED_FREQ_LOW,
-      .Alternate = GPIO_AF2_TIM5},    
-    .irqhandler = 0x0L
-  },
-  {
-    .tim = TIM5, // TIM5 CH2
-    .timer_resolution = 0xffffffff,
-    .tim_channel = TIM_CHANNEL_2,
-    .port = PortA,
-    .io = { // TIM5 CH1 IO
-      .Pin = GPIO_PIN_1,
-      .Mode = GPIO_MODE_AF_PP,
-      .Pull = GPIO_NOPULL,
-      .Speed = GPIO_SPEED_FREQ_LOW,
-      .Alternate = GPIO_AF2_TIM5},    
-    .irqhandler = 0x0L
-  },
-  {
-    .tim = TIM8, // TIM8 CH1
-    .timer_resolution = 0xffffffff,
-    .tim_channel = TIM_CHANNEL_1,
-    .port = PortC,
-    .io = { // TIM5 CH1 IO
-      .Pin = GPIO_PIN_6,
-      .Mode = GPIO_MODE_AF_PP,
-      .Pull = GPIO_NOPULL,
-      .Speed = GPIO_SPEED_FREQ_LOW,
-      .Alternate = GPIO_AF3_TIM8},    
-    .irqhandler = 0x0L
-  },
-  {
-    .tim = TIM8, // TIM8 CH2
-    .timer_resolution = 0xffffffff,
-    .tim_channel = TIM_CHANNEL_2,
-    .port = PortC,
-    .io = { // TIM5 CH1 IO
-      .Pin = GPIO_PIN_7,
-      .Mode = GPIO_MODE_AF_PP,
-      .Pull = GPIO_NOPULL,
-      .Speed = GPIO_SPEED_FREQ_LOW,
-      .Alternate = GPIO_AF3_TIM8},    
-    .irqhandler = 0x0L
-  },
-  {
-    .tim = TIM8, // TIM8 CH3
-    .timer_resolution = 0xffffffff,
-    .tim_channel = TIM_CHANNEL_3,
-    .port = PortC,
-    .io = { // TIM5 CH1 IO
-      .Pin = GPIO_PIN_8,
-      .Mode = GPIO_MODE_AF_PP,
-      .Pull = GPIO_NOPULL,
-      .Speed = GPIO_SPEED_FREQ_LOW,
-      .Alternate = GPIO_AF3_TIM8},    
-    .irqhandler = 0x0L
-  },
-  {
-    .tim = TIM8, // TIM8 CH4
-    .timer_resolution = 0xffffffff,
-    .tim_channel = TIM_CHANNEL_4,
-    .port = PortC,
-    .io = { // TIM5 CH1 IO
-      .Pin = GPIO_PIN_9,
-      .Mode = GPIO_MODE_AF_PP,
-      .Pull = GPIO_NOPULL,
-      .Speed = GPIO_SPEED_FREQ_LOW,
-      .Alternate = GPIO_AF3_TIM8},    
-    .irqhandler = 0x0L
-  }
-};
-
-/* Cross reference table TIM Active Channel to TIM Channel
-  Input : Active Channel assigned in timer irq handler
-  Output : TIM channel
 */
-const uint16_t ActiveChannelMap[]{
-  TIM_CHANNEL_1  ,
-  TIM_CHANNEL_2  ,
-  TIM_CHANNEL_3  ,
-  TIM_CHANNEL_4  ,
-  TIM_CHANNEL_5  ,
-  TIM_CHANNEL_6  ,
-  TIM_CHANNEL_ALL
-};
+static uint8_t idx=0;
 
-/* shared variables between IC objects and irq handler */
-sICdata ICdata[10];
-
-/* reach the first bit set to 1
-  Input : uint32_t number
-  Output : bit position between 0 to 31
+sIClist icList[10];
+/*
+  Return InputCapture instance related to the HardwareTimer instance
 */
-static uint8_t bitbang(uint32_t v) {
-  uint8_t i;
-  for( i=0;(i<32) && (!(v & (1<<i)));i++);
-    return i;
+static InputCapture *getICinstance(HardwareTimer *Htim) {
+  for(uint8_t i=0; i<sizeof(icList);i++)
+    if(icList[i].ptrHT == Htim)
+      return icList[i].ptrIC;
+  return (InputCapture *)0;
 }
 
-
-
-/* Find the index in Input Captture Map
-  Input : tim : TIM_TypeDef pointer
-          channel : channel number TIM_CHANNEL_x
-  Ouput : index > 0 : find in the table
-          -1 : don't find any occurence
-*/
-static int8_t getIndex(TIM_TypeDef *tim,uint16_t channel)
+static void InputCapture_IT_callback(HardwareTimer *Htim)
 {
-  for(uint8_t i=0; i<sizeof(ICMap);i++)
-    if((ICMap[i].tim == tim) && (ICMap[i].tim_channel == channel))
-      return i;
-
-  return -1;
+  InputCapture *ic=getICinstance(Htim);
+  ic->CurrentCapture = Htim->getCaptureCompare(ic->channel);
+  /* frequency computation */
+  if (ic->CurrentCapture > ic->LastCapture) {
+    ic->Period = ic->CurrentCapture - ic->LastCapture;
+  }
+  else if (ic->CurrentCapture <= ic->LastCapture) {
+    /* 0x1000 is max overflow value */
+    ic->Period = 0x10000 + ic->CurrentCapture - ic->LastCapture;
+  }
+  ic->Frequency = (float)ic->input_freq / (float)(ic->Period);
+  ic->LastCapture = ic->CurrentCapture;
+  ic->getF=true;
 }
 
-
-
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+/*void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
   uint16_t ch =ActiveChannelMap[bitbang(htim->Channel)];
   // dbg_acch = htim->Channel;
@@ -153,122 +56,66 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
   if(t>ICdata[idx].Previous_value)
     ICdata[idx].Period = t-ICdata[idx].Previous_value;
   else
-    ICdata[idx].Period = (ICMap[idx].timer_resolution-ICdata[idx].Previous_value)+t +1;
+  ICdata[idx].Period = (ICMap[idx].timer_resolution-ICdata[idx].Previous_value)+t +1;
   ICdata[idx].Previous_value=t;
   ICdata[idx].Frequency = ICdata[idx].FREQ_TIM/(float)ICdata[idx].Period;
   //Frequency=Period;
   digitalWrite(13,dbg_bb);
-  ICdata[idx].getF=true;
+}
+*/
+
+InputCapture::InputCapture(uint8_t pin) {
+  TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(digitalPinToPinName(pin), PinMap_PWM);
+  channel = STM_PIN_CHANNEL(pinmap_function(digitalPinToPinName(pin), PinMap_PWM));
+
+  // Instantiate HardwareTimer object. Thanks to 'new' instantiation, HardwareTimer is not destructed when setup() function is finished.
+  MyTim = new HardwareTimer(Instance);
+
+  // Configure rising edge detection to measure frequency
+  MyTim->setMode(channel, TIMER_INPUT_CAPTURE_RISING, pin);
+
+  // With a PrescalerFactor = 1, the minimum frequency value to measure is : TIM counter clock / CCR MAX
+  //  = (SystemCoreClock) / 65535
+  // Example on Nucleo_L476RG with systemClock at 80MHz, the minimum frequency is around 1,2 khz
+  // To reduce minimum frequency, it is possible to increase prescaler. But ic is at a cost of precision.
+  // The maximum frequency depends on processing of the interruption and thus depend on board used
+  // Example on Nucleo_L476RG with systemClock at 80MHz the interruption processing is around 4,5 microseconds and thus Max frequency is around 220kHz
+  uint32_t PrescalerFactor = 1;
+  MyTim->setPrescaleFactor(PrescalerFactor);
+  MyTim->setOverflow(0x10000); // Max Period value to have the largest possible time to detect rising edge and avoid timer rollover
+  MyTim->attachInterrupt(channel, InputCapture_IT_callback);  
+  if(idx<10) {
+    icList[idx].ptrHT = MyTim;
+    icList[idx].ptrIC = this;
+    idx++;
+  }
+};
+
+void InputCapture::begin(){
+  MyTim->resume();
+  // Compute ic scale factor only once
+  input_freq = MyTim->getTimerClkFreq() / MyTim->getPrescaleFactor();
 }
 
-InputCapture::InputCapture(void) {};
-
-void InputCapture::begin(uint8_t idx,uint32_t edge, uint32_t prescaler){
-
-  this->idx = idx;
-  __HAL_RCC_SYSCFG_CLK_ENABLE();
-  __HAL_RCC_PWR_CLK_ENABLE();
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_IC_InitTypeDef sConfigIC = {0};
-
-  htim.Instance = ICMap[idx].tim; // get predefined timer configuration
-  htim.Init.Prescaler = 0;
-  htim.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim.Init.Period = ICMap[idx].timer_resolution;
-  htim.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-
-  // htim.Base_MspInitCallback = HAL_IC_TIM5_Base_MspInit;
-  // htim.Base_MspDeInitCallback = HAL_IC_TIM5_Base_MspDeInit;
-
-  if (HAL_TIM_Base_Init(&htim) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  // call specific io init
-  HAL_IC_TIMx_Base_MspInit(&ICMap[idx]);
-
-  if (HAL_TIM_IC_Init(&htim) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigIC.ICPolarity = edge;
-  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
-  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
-  sConfigIC.ICFilter = 0;
-  if (HAL_TIM_IC_ConfigChannel(&htim, &sConfigIC, ICMap[idx].tim_channel) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_IC_Start_IT(&htim,ICMap[idx].tim_channel) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  // Store the timer clk
-  ICdata[idx].FREQ_TIM = getTimerClkFreq(ICMap[idx].tim);
-  ICdata[idx].Period = 0;
-  ICdata[idx].Previous_value = 0;
-  ICdata[idx].Frequency = 0;
-  ICdata[idx].getF = false;
-  //pinMode(LED_BUILTIN,OUTPUT);
-  DEBUGLN("InputCapture::begin:fin de l'init","");
-}
-
-// void TIM5_IRQHandler(void)
-// {
-//   HAL_TIM_IRQHandler(&htim);
-// }
-
-
-void InputCapture::HAL_IC_TIMx_Base_MspInit(sInputCapture *ic)
-{
-
-  /* clock enable */
-  timer_enable_clock(&htim);
-  /* IO Peripheral clock enable */
-  set_GPIO_Port_Clock(ic->port);
-  HAL_GPIO_Init(GPIOPort[ic->port], &(ic->io));
-
-  /* TIM interrupt Init */
-  HAL_NVIC_SetPriority((IRQn_Type)getTimerIrq(ic->tim), 0, 0);
-  HAL_NVIC_EnableIRQ((IRQn_Type)getTimerIrq(ic->tim));
-  DEBUGLN("InputCapture::begin:fin de MspInit","");
-}
-
-bool InputCapture::getCaptureEvent(void){
-  DEBUG("-idx=",idx);
+bool InputCapture::getEvent(void){
+/*  DEBUG("-idx=",idx);
 //  DEBUG("-Previous_value=",ICdata[idx].Previous_value);
   DEBUG("-Frequency=",ICdata[idx].Frequency);
-  bool tmp=ICdata[idx].getF;
-  ICdata[idx].getF=false;
+*/
+  bool tmp=getF;
+  getF=false;
   return tmp;
 }
 
-uint32_t InputCapture::getCapturePeriod(void){
-  return ICdata[idx].Period;
+uint32_t InputCapture::getPeriod(void){
+  return Period;
 }
 
 float  InputCapture::getFrequency(void){
-  return ICdata[idx].Frequency;
+  return Frequency;
 }
 
-uint32_t InputCapture::getCapturePinNumber(void){
+/*uint32_t InputCapture::getCapturePinNumber(void){
   return 0;
 }
 void dbg_print_ch() {
@@ -276,4 +123,4 @@ void dbg_print_ch() {
   DEBUG("-bb=",dbg_bb);
   DEBUG("-ch=",dbg_ch);
   DEBUGLN("-idx=",dbg_idx);
-}
+}*/

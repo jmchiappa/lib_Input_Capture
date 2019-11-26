@@ -2,6 +2,7 @@
 #define __InputCapture
 
 #include "Arduino.h"
+#include "HardwareTimer.h"
 
 #define TIM5_CH1	0
 #define TIM5_CH2	1
@@ -10,15 +11,8 @@
 #define TIM8_CH3	4
 #define TIM8_CH4	5
 
-typedef struct {
-	uint32_t Period;
-	uint32_t Previous_value;
-	float Frequency;
-	float FREQ_TIM;
-	bool getF=false;
-} sICdata;
 
-typedef struct struct_ic {
+/*typedef struct struct_ic {
 	TIM_TypeDef			*tim;
 	uint32_t			timer_resolution;
 	uint16_t			tim_channel;
@@ -26,6 +20,8 @@ typedef struct struct_ic {
 	GPIO_InitTypeDef    io;
 	void (*irqhandler)(void);
 } sInputCapture;
+*/
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,30 +29,45 @@ extern "C" {
 
 void dbg_print_ch(void);
 
-class InputCapture{
+class InputCapture {
 
-public:
-	InputCapture(void);
+public: 
+	InputCapture(uint8_t pin);
 
-	void begin(uint8_t idx, uint32_t edge, uint32_t prescaler);
-	void HAL_IC_TIMx_Base_MspInit(sInputCapture *ic);
-
+	void begin(void);
+//	void HAL_IC_TIMx_Base_MspInit(sInputCapture *ic);
 	// specify a delay so that period will be reset 
-	uint32_t setTimeout(uint32_t delay);
+//	uint32_t setTimeout(uint32_t delay);
 	// set to 1 when an event occurs
-	bool getCaptureEvent(void);
-	uint32_t getCapturePeriod(void);
+	bool getEvent(void);
+	uint32_t getPeriod(void);
 	float	 getFrequency(void);
-	uint32_t getCaptureAbsoluteValue(void);
-	uint32_t getCapturePinNumber(void);	// expressed in Arduino space
+//	uint32_t getCaptureAbsoluteValue(void);
 
-private:
-	TIM_HandleTypeDef htim;
-	uint8_t idx;
+//private:
+	uint32_t channel;
+	volatile uint32_t LastCapture = 0, CurrentCapture;
+	float input_freq = 0;
+
+	uint32_t Period;
+//	uint32_t Previous_value;
+	float Frequency;
+	float FREQ_TIM;
+	bool getF=false;
+	HardwareTimer *MyTim;
+
 };
 
 #ifdef __cplusplus
 }
 #endif
+
+typedef struct {
+	InputCapture *ptrIC;
+	HardwareTimer *ptrHT;
+} sIClist;
+
+static void InputCapture_IT_callback(HardwareTimer *Htim);
+static InputCapture *getICinstance(HardwareTimer *Htim);
 
 #endif // __InputCapture
