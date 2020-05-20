@@ -4,6 +4,16 @@
 #include "Arduino.h"
 #include "HardwareTimer.h"
 
+#if defined(STM32_CORE_VERSION)
+#	if (STM32_CORE_VERSION  < 0x01090000)
+#		define HWTIMER_ARG(cb,param)	(cb)
+#	else
+# 	define HWTIMER_ARG(cb,param)	std::bind(cb,param)
+#	endif
+#else
+# error "Library works with STM32 only"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,7 +46,5 @@ typedef struct {
 	HardwareTimer *ptrHT;
 } sIClist;
 
-static void InputCapture_IT_callback(HardwareTimer *Htim);
-static InputCapture *getICinstance(HardwareTimer *Htim);
 
 #endif // __InputCapture

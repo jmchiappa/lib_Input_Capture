@@ -58,7 +58,7 @@ InputCapture::InputCapture(uint8_t pin) {
   uint32_t PrescalerFactor = 1;
   MyTim->setPrescaleFactor(PrescalerFactor);
   MyTim->setOverflow(0x10000); // Max Period value to have the largest possible time to detect rising edge and avoid timer rollover
-  MyTim->attachInterrupt(channel, InputCapture_IT_callback);  
+  MyTim->attachInterrupt(channel, HWTIMER_ARG(InputCapture_IT_callback,MyTim));
   if(idx<10) {
     icList[idx].ptrHT = MyTim;
     icList[idx].ptrIC = this;
